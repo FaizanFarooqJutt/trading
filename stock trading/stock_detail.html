@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ stock.name }} Live Candlestick Chart</title>
+
+    <!-- ✅ Required scripts for candlestick charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f2f5; text-align: center; padding: 20px; }
+        .container { background: #fff; padding: 20px; border-radius: 10px; max-width: 900px; margin: auto; }
+        canvas { max-width: 100%; height: 450px; }
+        form { margin-top: 20px; }
+        input, button { padding: 10px; margin: 5px; }
+        button { background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>{{ stock.name }} ({{ stock.symbol }}) Live Candlestick Chart</h2>
+        <canvas id="candlestickChart"></canvas>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="price" id="livePrice">
+            <input type="number" name="quantity" placeholder="Quantity" min="1" required>
+            <button type="submit" name="action" value="buy">Buy</button>
+            <button type="submit" name="action" value="sell">Sell</button>
+        </form>
+
+        <p id="priceDisplay">Fetching live price...</p>
+        <a href="{% url 'dashboard' %}">⬅️ Back to Dashboard</a>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('candlestickChart').getContext('2d');
+        const priceDisplay = document.getElementById('priceDisplay');
+        const livePriceInput = document.getElementById('livePrice');
+        const symbol = "{{ stock.symbol }}";
+
+        // ✅ Candlestick chart configuration
+        const candlestickChart = new Chart(ctx, {
+            type: 'candlestick',
+            data: {
+                datasets: [{
+                    label: 'Live Candlestick',
+                    data: []
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'minute' },
+                        title: { display: true, text: 'Time' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Price (USD)' },
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+
+        // ✅ Live data fetching and appending to chart
+        async function fetchLiveData() {
+            try {
+                const response = await fetch(`/get_candlestick_data/${symbol}/`);
+                const data = await response.json();
+
+                if (data.error) {
+                    priceDisplay.textContent = 'Error fetching data.';
+                    return;
+                }
+
+                const ohlc = {
+                    x: new Date(data.timestamp),
+                    o: data.open,
+                    h: data.high,
+                    l: data.low,
+                    c: data.close
+                };
+
+                candlestickChart.data.datasets[0].data.push(ohlc);
+                candlestickChart.update();
+
+                priceDisplay.textContent = `Live Price: $${data.close}`;
+                livePriceInput.value = data.close;
+            } catch (error) {
+                console.error(error);
+                priceDisplay.textContent = 'Error fetching data.';
+            }
+        }
+
+        // ✅ Fetch immediately and refresh every 5 seconds
+        fetchLiveData();
+        setInterval(fetchLiveData, 5000);
+    </script>
+</body>
+</html>
