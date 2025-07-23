@@ -1,0 +1,2 @@
+# trading
+stock trading web
